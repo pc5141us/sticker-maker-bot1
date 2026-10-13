@@ -14,8 +14,9 @@ export interface StickerInfo {
 /**
  * الحصول على رابط تحميل الملف من تليجرام
  */
-export async function getFileDownloadUrl(bot: Telegraf, fileId: string): Promise<string> {
-  const fileLink = await bot.telegram.getFileLink(fileId);
+export async function getFileDownloadUrl(tg: any, fileId: string): Promise<string> {
+  const telegram = tg?.telegram || tg;
+  const fileLink = await telegram.getFileLink(fileId);
   return fileLink.toString();
 }
 
@@ -37,9 +38,10 @@ export async function downloadFile(url: string, destinationPath: string): Promis
 /**
  * جلب تفاصيل حزمة استكرات تليجرام كاملة
  */
-export async function getStickerSet(bot: Telegraf, name: string) {
+export async function getStickerSet(tg: any, name: string) {
+  const telegram = tg?.telegram || tg;
   try {
-    const stickerSet = await bot.telegram.getStickerSet(name);
+    const stickerSet = await telegram.getStickerSet(name);
     return stickerSet;
   } catch (error: any) {
     throw new Error(`تعذر العثور على حزمة الاستكرات باسم: "${name}". تأكد من صحة الرابط أو الاسم.`);

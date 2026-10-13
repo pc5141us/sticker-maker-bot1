@@ -5,12 +5,21 @@ import { config } from '../config.js';
 import { ensureDir, removeDir, formatBytes } from '../utils/helpers.js';
 import { getFileDownloadUrl, downloadFile } from '../services/telegram.js';
 import { convertSticker, StickerType } from '../services/converter.js';
+import { handlePackConversion } from './pack.js';
 
 export async function handleSingleSticker(ctx: Context) {
   // @ts-ignore
   const sticker = ctx.message?.sticker;
   if (!sticker) return;
 
+  // 1. إذا كان الاستكر ينتمي لحزمة استكرات، نقوم تلقائياً بجلب وتحويل الحزمة كاملة!
+  if (sticker.set_name) {
+    console.log(`📦 تم استقبال استكر ينتمي لحزمة: ${sticker.set_name}، جاري معالجة الحزمة كاملة...`);
+    await handlePackConversion(ctx, sticker.set_name);
+    return;
+  }
+
+  // 2. إذا كان الاستكر منفرداً ولا ينتمي لأي حزمة (Custom Sticker)
   const statusMsg = await ctx.reply('⏳ جاري تحميل ومعالجة الاستكر بمقاييس واتساب (512×512)...');
 
   const sessionId = `sticker_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -34,17 +43,13 @@ export async function handleSingleSticker(ctx: Context) {
     const inputPath = path.join(sessionDir, `input${inputExt}`);
     const outputPath = path.join(sessionDir, `whatsapp_sticker.webp`);
 
-    // 1. الحصول على رابط الملف وتحميله
+    // تحميل ومعالجة الاستكر الفردي
     const downloadUrl = await getFileDownloadUrl(ctx.telegram as any, sticker.file_id);
     await downloadFile(downloadUrl, inputPath);
-
-    // 2. التحويل إلى صيغة ومقاييس واتساب
     await convertSticker(inputPath, outputPath, type);
 
     const stats = await fs.stat(outputPath);
     const sizeStr = formatBytes(stats.size);
-
-    // 3. إرسال الملف الناتج للمستخدم
     const typeLabel = type === 'static' ? 'ثابت' : type === 'video' ? 'فيديو متحرك' : 'متحرك TGS';
 
     await ctx.replyWithDocument(
@@ -54,13 +59,11 @@ export async function handleSingleSticker(ctx: Context) {
           `• **النوع:** ${typeLabel}\n` +
           `• **المقاس:** 512×512 بكسل\n` +
           `• **الحجم:** ${sizeStr} (متوافق مع واتساب)\n\n` +
-          `💡 يمكنك حفظ الملف واستخدامه مباشرة في واتساب.\n` +
-          `📦 لتحويل الحزمة كاملة، أرسل رابط الحزمة: \`t.me/addstickers/...\``,
+          `💡 يمكنك حفظ الملف واستخدامه مباشرة في واتساب.`,
         parse_mode: 'Markdown'
       }
     );
 
-    // حذف رسالة الحالة لتنظيف الشات
     await ctx.telegram.deleteMessage(ctx.chat!.id, statusMsg.message_id).catch(() => {});
 
   } catch (error: any) {
@@ -72,7 +75,6 @@ export async function handleSingleSticker(ctx: Context) {
       `❌ عذراً، حدث خطأ أثناء معالجة الاستكر:\n${error.message || 'خطأ غير معروف'}`
     ).catch(() => {});
   } finally {
-    // تنظيف المجلد المؤقت
     await removeDir(sessionDir);
   }
 }

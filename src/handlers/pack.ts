@@ -114,9 +114,10 @@ export async function handlePackConversion(ctx: Context, input: string) {
     ).catch(() => {});
 
     const botInfo = await ctx.telegram.getMe();
+    const botUsername = botInfo.username ? `@${botInfo.username}` : 'StickerBot';
     const packaged = await packageStickers({
-      title: stickerSet.title,
-      author: `@${botInfo.username || 'StickerBot'}`,
+      title: botUsername,
+      author: botUsername,
       stickerPaths: convertedPaths,
       outputDir: sessionDir
     });
@@ -132,13 +133,14 @@ export async function handlePackConversion(ctx: Context, input: string) {
       },
       {
         caption: `🎉 **تم تجهيز حزمة واتساب بنجاح!**\n\n` +
-          `• **الحزمة:** ${stickerSet.title}\n` +
+          `• **اسم الحزمة لواتساب:** ${botUsername}\n` +
+          `• **الحزمة الأصلية:** ${stickerSet.title}\n` +
           `• **الاستكرات المحولة:** ${packaged.count}\n` +
           `• **الحجم:** ${formatBytes(wastickersStats.size)}\n\n` +
           `📲 **طريقة الاستخدام على الهاتف:**\n` +
           `1. اضغط على الملف أعلاه واختر **"فتح بواسطة / Open With"**.\n` +
           `2. اختر تطبيق **Sticker Maker**.\n` +
-          `3. اضغط على **"Add to WhatsApp"** وستضاف الحزمة لواتساب مباشرة!`,
+          `3. اضغط على **"Add to WhatsApp"** وستضاف الحزمة لواتساب باسم: **${botUsername}**!`,
         parse_mode: 'Markdown'
       }
     );

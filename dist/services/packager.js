@@ -19,7 +19,7 @@ export async function createTrayIcon(sourcePath, outputPath) {
  */
 export async function packageStickers(options) {
     const { title, author, stickerPaths, outputDir, traySourcePath } = options;
-    const sanitizedTitle = title.replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_').substring(0, 30) || 'Stickers';
+    const sanitizedTitle = title.replace(/^@/, '').replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_').substring(0, 30) || 'Stickers';
     const wastickersPath = path.join(outputDir, `${sanitizedTitle}.wastickers`);
     const zipPath = path.join(outputDir, `${sanitizedTitle}.zip`);
     // 1. إنشاء أيقونة الحزمة

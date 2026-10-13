@@ -4,8 +4,9 @@ import { Readable } from 'stream';
 /**
  * الحصول على رابط تحميل الملف من تليجرام
  */
-export async function getFileDownloadUrl(bot, fileId) {
-    const fileLink = await bot.telegram.getFileLink(fileId);
+export async function getFileDownloadUrl(tg, fileId) {
+    const telegram = tg?.telegram || tg;
+    const fileLink = await telegram.getFileLink(fileId);
     return fileLink.toString();
 }
 /**
@@ -24,9 +25,10 @@ export async function downloadFile(url, destinationPath) {
 /**
  * جلب تفاصيل حزمة استكرات تليجرام كاملة
  */
-export async function getStickerSet(bot, name) {
+export async function getStickerSet(tg, name) {
+    const telegram = tg?.telegram || tg;
     try {
-        const stickerSet = await bot.telegram.getStickerSet(name);
+        const stickerSet = await telegram.getStickerSet(name);
         return stickerSet;
     }
     catch (error) {
