@@ -1,6 +1,6 @@
 import path from 'path';
 import { config } from '../config.js';
-import { ensureDir, removeDir, extractPackName, formatBytes } from '../utils/helpers.js';
+import { ensureDir, removeDir, extractPackName, formatBytes, escapeHtml } from '../utils/helpers.js';
 import { getFileDownloadUrl, downloadFile, getStickerSet } from '../services/telegram.js';
 import { convertSticker } from '../services/converter.js';
 import { packageStickers } from '../services/packager.js';
@@ -9,10 +9,10 @@ export async function handlePackConversion(ctx, input) {
     const packName = extractPackName(input);
     if (!packName) {
         await ctx.reply('❌ الرابط أو الاسم غير صالح. يرجى إرسال رابط حزمة صالح مثل:\n' +
-            '`https://t.me/addstickers/Animals`\nأو اسم الحزمة مباشرة.', { parse_mode: 'Markdown' });
+            '<code>https://t.me/addstickers/Animals</code>\nأو اسم الحزمة مباشرة.', { parse_mode: 'HTML' });
         return;
     }
-    const statusMsg = await ctx.reply(`🔍 جاري فحص الحزمة: \`${packName}\`...`, { parse_mode: 'Markdown' });
+    const statusMsg = await ctx.reply(`🔍 جاري فحص الحزمة: <code>${escapeHtml(packName)}</code>...`, { parse_mode: 'HTML' });
     const sessionId = `pack_${packName}_${Date.now()}`;
     const sessionDir = path.join(config.tempDir, sessionId);
     const stickersDir = path.join(sessionDir, 'stickers');
@@ -28,11 +28,11 @@ export async function handlePackConversion(ctx, input) {
             return;
         }
         const countToConvert = Math.min(totalStickers, config.maxPackStickers);
-        await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `📦 **تم العثور على الحزمة:**\n` +
-            `• **الاسم:** ${stickerSet.title}\n` +
-            `• **إجمالي الاستكرات:** ${totalStickers}\n` +
-            `• **سيتم تحويل:** ${countToConvert} استكر\n\n` +
-            `⏳ جاري التحميل والتحويل بمقاييس واتساب (0/${countToConvert})...`, { parse_mode: 'Markdown' });
+        await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `📦 <b>تم العثور على الحزمة:</b>\n` +
+            `• <b>الاسم:</b> ${escapeHtml(stickerSet.title)}\n` +
+            `• <b>إجمالي الاستكرات:</b> ${totalStickers}\n` +
+            `• <b>سيتم تحويل:</b> ${countToConvert} استكر\n\n` +
+            `⏳ جاري التحميل والتحويل بمقاييس واتساب (0/${countToConvert})...`, { parse_mode: 'HTML' });
         const convertedPaths = [];
         let lastProgressUpdate = Date.now();
         // 2. تحميل وتحويل الاستكرات
@@ -57,14 +57,14 @@ export async function handlePackConversion(ctx, input) {
                 convertedPaths.push(convPath);
             }
             catch (err) {
-                console.warn(`تعذر تحويل الاستكر رقم ${i + 1}:`, err);
+                console.warn(`تعذر تحويل الاستكر رقم ${i + 1}:`, err.message || err);
             }
-            // تحديث رسالة التقدم كل ثانيتين أو كل 5 استكرات
+            // تحديث رسالة التقدم كل ثانيتين أو عند آخر استكر
             const now = Date.now();
             if (now - lastProgressUpdate > 2500 || i === countToConvert - 1) {
                 lastProgressUpdate = now;
                 await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `⏳ جاري التحميل والتحويل بمقاييس واتساب (${i + 1}/${countToConvert})...\n` +
-                    `[${'█'.repeat(Math.round(((i + 1) / countToConvert) * 10))}${'░'.repeat(10 - Math.round(((i + 1) / countToConvert) * 10))}]`, { parse_mode: 'Markdown' }).catch(() => { });
+                    `[${'█'.repeat(Math.round(((i + 1) / countToConvert) * 10))}${'░'.repeat(10 - Math.round(((i + 1) / countToConvert) * 10))}]`).catch(() => { });
             }
         }
         if (convertedPaths.length === 0) {
@@ -87,25 +87,25 @@ export async function handlePackConversion(ctx, input) {
             source: packaged.wastickersPath,
             filename: path.basename(packaged.wastickersPath)
         }, {
-            caption: `🎉 **تم تجهيز حزمة واتساب بنجاح!**\n\n` +
-                `• **اسم الحزمة لواتساب:** ${botUsername}\n` +
-                `• **الحزمة الأصلية:** ${stickerSet.title}\n` +
-                `• **الاستكرات المحولة:** ${packaged.count}\n` +
-                `• **الحجم:** ${formatBytes(wastickersStats.size)}\n\n` +
-                `📲 **طريقة الاستخدام على الهاتف:**\n` +
-                `1. اضغط على الملف أعلاه واختر **"فتح بواسطة / Open With"**.\n` +
-                `2. اختر تطبيق **Sticker Maker**.\n` +
-                `3. اضغط على **"Add to WhatsApp"** وستضاف الحزمة لواتساب باسم: **${botUsername}**!`,
-            parse_mode: 'Markdown'
+            caption: `🎉 <b>تم تجهيز حزمة واتساب بنجاح!</b>\n\n` +
+                `• <b>اسم الحزمة لواتساب:</b> ${escapeHtml(botUsername)}\n` +
+                `• <b>الحزمة الأصلية:</b> ${escapeHtml(stickerSet.title)}\n` +
+                `• <b>الاستكرات المحولة:</b> ${packaged.count}\n` +
+                `• <b>الحجم:</b> ${formatBytes(wastickersStats.size)}\n\n` +
+                `📲 <b>طريقة الاستخدام على الهاتف:</b>\n` +
+                `1. اضغط على الملف أعلاه واختر <b>"فتح بواسطة / Open With"</b>.\n` +
+                `2. اختر تطبيق <b>Sticker Maker</b>.\n` +
+                `3. اضغط على <b>"Add to WhatsApp"</b> وستضاف الحزمة لواتساب باسم: <b>${escapeHtml(botUsername)}</b>!`,
+            parse_mode: 'HTML'
         });
         // 5. إرسال ملف .zip لخيارات الاستخدام البديلة
         await ctx.replyWithDocument({
             source: packaged.zipPath,
             filename: path.basename(packaged.zipPath)
         }, {
-            caption: `📁 **نسخة أرشيف ZIP للملفات:**\n` +
+            caption: `📁 <b>نسخة أرشيف ZIP للملفات:</b>\n` +
                 `يحتوي على كافة ملفات WebP (512×512) للاستخدام على الكمبيوتر أو الاستخراج اليدوي (${formatBytes(zipStats.size)}).`,
-            parse_mode: 'Markdown'
+            parse_mode: 'HTML'
         });
         // مسح رسالة التحميل المؤقتة
         await ctx.telegram.deleteMessage(ctx.chat.id, statusMsg.message_id).catch(() => { });

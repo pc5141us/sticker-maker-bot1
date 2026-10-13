@@ -58,18 +58,14 @@ export async function convertVideoSticker(inputPath: string, outputPath: string)
   return new Promise((resolve, reject) => {
     ffmpeg(inputPath)
       .setDuration(3)
-      .fps(16)
-      .complexFilter([
-        'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000'
-      ])
       .outputOptions([
+        '-vf fps=16,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
         '-vcodec libwebp',
         '-lossless 0',
         '-compression_level 4',
         '-q:v 55',
         '-loop 0',
-        '-an',
-        '-vsync 0'
+        '-an'
       ])
       .save(outputPath)
       .on('end', async () => {
@@ -81,18 +77,14 @@ export async function convertVideoSticker(inputPath: string, outputPath: string)
             const compressedPath = outputPath.replace('.webp', '_comp.webp');
             ffmpeg(inputPath)
               .setDuration(3)
-              .fps(12)
-              .complexFilter([
-                'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000'
-              ])
               .outputOptions([
+                '-vf fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
                 '-vcodec libwebp',
                 '-lossless 0',
                 '-compression_level 5',
-                '-q:v 40',
+                '-q:v 35',
                 '-loop 0',
-                '-an',
-                '-vsync 0'
+                '-an'
               ])
               .save(compressedPath)
               .on('end', async () => {
@@ -107,7 +99,7 @@ export async function convertVideoSticker(inputPath: string, outputPath: string)
           resolve(outputPath);
         }
       })
-      .on('error', (err) => {
+      .on('error', (err: any) => {
         reject(new Error(`فشل تحويل استكر الفيديو: ${err.message}`));
       });
   });

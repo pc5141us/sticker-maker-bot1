@@ -66,3 +66,15 @@ export function extractPackName(input: string): string | null {
 
   return null;
 }
+
+/**
+ * الهروب من الرموز الخاصة في HTML لتليجرام
+ */
+export function escapeHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+

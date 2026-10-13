@@ -59,3 +59,14 @@ export function extractPackName(input) {
     }
     return null;
 }
+/**
+ * الهروب من الرموز الخاصة في HTML لتليجرام
+ */
+export function escapeHtml(text) {
+    if (!text)
+        return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}

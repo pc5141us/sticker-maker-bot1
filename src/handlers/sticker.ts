@@ -55,12 +55,12 @@ export async function handleSingleSticker(ctx: Context) {
     await ctx.replyWithDocument(
       { source: outputPath, filename: `sticker_wa_${sticker.emoji || 'stk'}.webp` },
       {
-        caption: `✅ **تم تحويل الاستكر بنجاح!**\n\n` +
-          `• **النوع:** ${typeLabel}\n` +
-          `• **المقاس:** 512×512 بكسل\n` +
-          `• **الحجم:** ${sizeStr} (متوافق مع واتساب)\n\n` +
+        caption: `✅ <b>تم تحويل الاستكر بنجاح!</b>\n\n` +
+          `• <b>النوع:</b> ${typeLabel}\n` +
+          `• <b>المقاس:</b> 512×512 بكسل\n` +
+          `• <b>الحجم:</b> ${sizeStr} (متوافق مع واتساب)\n\n` +
           `💡 يمكنك حفظ الملف واستخدامه مباشرة في واتساب.`,
-        parse_mode: 'Markdown'
+        parse_mode: 'HTML'
       }
     );
 
