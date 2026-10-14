@@ -2,6 +2,15 @@ import { config } from './config.js';
 import { createBot } from './bot.js';
 import { ensureDir } from './utils/helpers.js';
 
+// منع توقف التطبيق في حال حدوث خطأ غير متوقع
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ خطأ عام غير معالج (Uncaught Exception):', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ رفض غير معالج للوعد (Unhandled Rejection):', reason);
+});
+
 async function bootstrap() {
   if (!config.botToken) {
     console.error(`
@@ -32,7 +41,9 @@ BOT_TOKEN=123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ
 =====================================================
 `);
 
-  await bot.launch({ dropPendingUpdates: true });
+  await bot.launch({
+    dropPendingUpdates: false
+  });
 
   // إيقاف آمن عند الخروج
   process.once('SIGINT', () => bot.stop('SIGINT'));
