@@ -21,7 +21,6 @@ export interface PackagedPart {
 
 export interface PackagedResult {
   parts: PackagedPart[];
-  zipPath: string;
   totalStickers: number;
 }
 
@@ -105,30 +104,8 @@ export async function packageStickers(options: PackageOptions): Promise<Packaged
     });
   }
 
-  // 3. إنشاء ملف ZIP شامل يحتوي على كافة الاستكرات المحولة دفعة واحدة
-  const zipPath = path.join(outputDir, `${baseSanitized}_all.zip`);
-  await new Promise<void>((resolve, reject) => {
-    const output = fs.createWriteStream(zipPath);
-    const archive = new ZipArchive({ zlib: { level: 9 } });
-
-    output.on('close', () => resolve());
-    archive.on('error', (err: any) => reject(err));
-    archive.pipe(output);
-
-    stickerPaths.forEach((stkPath, index) => {
-      if (fs.existsSync(stkPath)) {
-        const ext = path.extname(stkPath);
-        const num = String(index + 1).padStart(3, '0');
-        archive.file(stkPath, { name: `sticker_${num}${ext}` });
-      }
-    });
-
-    archive.finalize();
-  });
-
   return {
     parts,
-    zipPath,
     totalStickers: stickerPaths.length
   };
 }

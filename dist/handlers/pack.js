@@ -116,21 +116,11 @@ export async function handlePackConversion(ctx, input) {
                     `• <b>الحزمة الأصلية:</b> ${escapeHtml(stickerSet.title)}\n` +
                     `• <b>الحجم:</b> ${formatBytes(partStats.size)}\n\n` +
                     `📲 <b>طريقة الإضافة لواتساب:</b>\n` +
-                    `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker</b>.\n` +
-                    `2. اضغط على <b>Add to WhatsApp</b> للإضافة فوراً!`,
+                    `1. اضغط على الملف أعلاه واختر <b>فتح بواسطة / Open With -> تطبيق Sticker Maker US</b>.\n` +
+                    `2. اضغط على زر <b>إضافة إلى WhatsApp</b> وستضاف الحزمة فوراً بدون إعلانات!`,
                 parse_mode: 'HTML'
             });
         }
-        // 5. إرسال ملف .zip شامل يحتوي على كل الاستكرات
-        const zipStats = await fs.stat(packaged.zipPath);
-        await ctx.replyWithDocument({
-            source: packaged.zipPath,
-            filename: path.basename(packaged.zipPath)
-        }, {
-            caption: `📁 <b>ملف ZIP شامل لجميع استكرات الحزمة:</b>\n` +
-                `يحتوي على كافة استكرات الحزمة (${packaged.totalStickers} استكر) بصيغة WebP بمقاس 512×512 (${formatBytes(zipStats.size)}).`,
-            parse_mode: 'HTML'
-        });
         // مسح رسالة التحميل المؤقتة
         await ctx.telegram.deleteMessage(ctx.chat.id, statusMsg.message_id).catch(() => { });
     }

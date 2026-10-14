@@ -53,7 +53,6 @@ async function runTest() {
   console.log(`✅ نتيجة إنشاء الحزمة:
 • عدد الأجزاء: ${packResult.parts.length}
 • مسار الجزء الأول: ${packResult.parts[0]?.wastickersPath}
-• مسار .zip: ${packResult.zipPath}
 • إجمالي الاستكرات: ${packResult.totalStickers}`);
 
   // تنظيف مجلد الاختبار
