@@ -93,7 +93,7 @@ export async function handlePackConversion(ctx, input) {
         // 3. تجهيز الحزم وتقسيمها إلى 30 استكر لكل ملف
         await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `🗜️ جاري تجميع الحزم وتقسيمها لمقاس واتساب (30 استكر لكل حزمة)...`).catch(() => { });
         const botInfo = await ctx.telegram.getMe();
-        const botUsername = botInfo.username ? `@${botInfo.username}` : 'StickerBot';
+        const botUsername = botInfo.username ? `@${botInfo.username}` : '@stickermakerusbot';
         const packaged = await packageStickers({
             title: botUsername,
             author: botUsername,
@@ -116,8 +116,8 @@ export async function handlePackConversion(ctx, input) {
                     `• <b>الحزمة الأصلية:</b> ${escapeHtml(stickerSet.title)}\n` +
                     `• <b>الحجم:</b> ${formatBytes(partStats.size)}\n\n` +
                     `📲 <b>طريقة الإضافة لواتساب:</b>\n` +
-                    `1. اضغط على الملف أعلاه واختر <b>فتح بواسطة / Open With -> تطبيق Sticker Maker US</b>.\n` +
-                    `2. اضغط على زر <b>إضافة إلى WhatsApp</b> وستضاف الحزمة فوراً بدون إعلانات!`,
+                    `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker</b>.\n` +
+                    `2. اضغط على <b>Add to WhatsApp</b> للإضافة فوراً!`,
                 parse_mode: 'HTML'
             });
         }

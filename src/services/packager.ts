@@ -50,16 +50,17 @@ export async function packageStickers(options: PackageOptions): Promise<Packaged
     chunks.push(stickerPaths.slice(i, i + STICKERS_PER_PACK));
   }
 
-  const baseSanitized = title.replace(/^@/, '').replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_').substring(0, 25) || 'Stickers';
+  const botTag = '@stickermakerusbot';
+  const packBaseTitle = (title && title.startsWith('@')) ? title : botTag;
   const totalParts = chunks.length;
   const parts: PackagedPart[] = [];
 
   for (let idx = 0; idx < totalParts; idx++) {
     const chunk = chunks[idx];
     const partNumber = idx + 1;
-    const partTitle = totalParts > 1 ? `${title} (P${partNumber})` : title;
+    const partTitle = totalParts > 1 ? `${packBaseTitle} (P${partNumber})` : packBaseTitle;
     const fileNameSuffix = totalParts > 1 ? `_part${partNumber}` : '';
-    const wastickersPath = path.join(outputDir, `${baseSanitized}${fileNameSuffix}.wastickers`);
+    const wastickersPath = path.join(outputDir, `stickermakerusbot${fileNameSuffix}.wastickers`);
 
     // 1. توليد أيقونة الغلاف tray.png من أول استكر في هذا الجزء
     const trayPath = path.join(outputDir, `tray_${partNumber}.png`);

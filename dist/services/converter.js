@@ -102,22 +102,30 @@ export async function convertVideoSticker(inputPath, outputPath) {
  */
 export async function convertTgsSticker(inputPath, outputPath) {
     try {
-        // محاولة استخدام مكتبة tgs-to إن كانت متوفرة
+        // استخدام tgs-to لإنتاج GIF ثم تحويله بواسطة sharp لضمان العمل على Apple Silicon
         // @ts-ignore
         const TGS = (await import('tgs-to')).default || (await import('tgs-to'));
         const tgs = new TGS(inputPath);
-        const tempWebp = outputPath.replace('.webp', '_raw.webp');
-        await tgs.convertToWebp(tempWebp);
-        if (fsSync.existsSync(tempWebp)) {
-            // ضبط الأبعاد إلى 512×512 وتحسين الحجم
-            await sharp(tempWebp, { animated: true })
+        const tempGif = outputPath.replace('.webp', '_temp.gif');
+        await tgs.convertToGif(tempGif);
+        if (fsSync.existsSync(tempGif)) {
+            await sharp(tempGif, { animated: true })
                 .resize(512, 512, {
                 fit: 'contain',
                 background: { r: 0, g: 0, b: 0, alpha: 0 }
             })
-                .webp({ effort: 4 })
+                .webp({ quality: 50, effort: 5, loop: 0 })
                 .toFile(outputPath);
-            await fs.unlink(tempWebp).catch(() => { });
+            await fs.unlink(tempGif).catch(() => { });
+            // ضمان أن حجم الاستكر لا يتعدى 500 كيلوبايت وفق معايير واتساب
+            const stats = await fs.stat(outputPath);
+            if (stats.size > 480 * 1024) {
+                const compressedPath = outputPath.replace('.webp', '_comp.webp');
+                await sharp(outputPath, { animated: true })
+                    .webp({ quality: 30, effort: 6, loop: 0 })
+                    .toFile(compressedPath);
+                await fs.rename(compressedPath, outputPath);
+            }
             return outputPath;
         }
     }
