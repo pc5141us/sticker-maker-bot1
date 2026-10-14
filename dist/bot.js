@@ -1,8 +1,8 @@
-import { Telegraf } from 'telegraf';
+import { Telegraf, Markup } from 'telegraf';
 import { message } from 'telegraf/filters';
 import https from 'https';
 import { config } from './config.js';
-import { handleStart, handleHelp } from './handlers/commands.js';
+import { handleStart, handleHelp, handleApp, sendAppApk } from './handlers/commands.js';
 import { handleSingleSticker } from './handlers/sticker.js';
 import { handlePackConversion } from './handlers/pack.js';
 import { extractPackName } from './utils/helpers.js';
@@ -39,7 +39,14 @@ export function createBot() {
     // 1. الأوامر الأساسية
     bot.start(handleStart);
     bot.help(handleHelp);
-    // 2. أمر الحزمة اليدوي /pack
+    // 2. أوامر تحميل التطبيق مباشرة
+    bot.command(['app', 'apk', 'download', 'program'], handleApp);
+    // زر التفاعل الداخلي لتحميل التطبيق (Inline Callback)
+    bot.action('download_app', async (ctx) => {
+        await ctx.answerCbQuery('📲 جاري إرسال التطبيق...');
+        await sendAppApk(ctx);
+    });
+    // 3. أمر الحزمة اليدوي /pack
     bot.command('pack', async (ctx) => {
         const text = ctx.message.text.replace(/^\/pack(@\w+)?/i, '').trim();
         if (!text) {
@@ -48,22 +55,40 @@ export function createBot() {
         }
         await handlePackConversion(ctx, text);
     });
-    // 3. استقبال الاستكرات الفردية وحزم الاستكرات تلقائياً
+    // 4. استقبال الاستكرات الفردية وحزم الاستكرات تلقائياً
     bot.on(message('sticker'), handleSingleSticker);
-    // 4. استقبال النصوص (للتحقق مما إذا كان المستخدم أرسل رابط حزمة مباشرة)
+    // 5. استقبال النصوص (للتحقق مما إذا كان المستخدم أرسل رابط حزمة أو يطلب التطبيق)
     bot.on(message('text'), async (ctx) => {
         const text = ctx.message.text.trim();
         if (text.startsWith('/'))
             return; // تجاهل الأوامر غير المعروفة
+        // الاستجابة لطلبات تحميل التطبيق بالنصوص الطبيعية
+        const appKeywords = [
+            'تحميل التطبيق', 'تحميل البرنامج', 'تنزيل التطبيق', 'تنزيل البرنامج',
+            'عايز البرنامج', 'عاوز البرنامج', 'عايز التطبيق', 'عاوز التطبيق',
+            'ارسل البرنامج', 'ابعت البرنامج', 'ارسل التطبيق', 'ابعت التطبيق',
+            'تطبيق', 'برنامج', 'apk', 'app'
+        ];
+        const isAppRequest = appKeywords.some(keyword => text.toLowerCase().includes(keyword));
+        if (isAppRequest) {
+            await sendAppApk(ctx);
+            return;
+        }
         const packName = extractPackName(text);
         if (packName) {
             await handlePackConversion(ctx, text);
         }
         else {
-            await ctx.reply('💡 <b>طريقة استخدام البوت:</b>\n' +
+            await ctx.reply('💡 <b>طريقة استخدام البوت:</b>\n\n' +
                 '• أرسل أي استكر مباشرة وسيقوم البوت بتحويل الحزمة كاملة لواتساب.\n' +
                 '• أو أرسل رابط حزمة تليجرام لتحويلها فوراً.\n' +
-                '• للمساعدة والشرح: /help', { parse_mode: 'HTML' });
+                '• للمساعدة والشرح: /help\n' +
+                '• لتحميل تطبيق الأندرويد: /app أو اضغط على الزر أدناه.', {
+                parse_mode: 'HTML',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback('📲 تحميل تطبيق Sticker Maker US (APK)', 'download_app')]
+                ])
+            });
         }
     });
     // معالجة الأخطاء غير المتوقعة لمنع توقف البوت

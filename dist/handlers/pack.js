@@ -1,3 +1,4 @@
+import { Markup } from 'telegraf';
 import path from 'path';
 import { config } from '../config.js';
 import { ensureDir, removeDir, extractPackName, formatBytes, escapeHtml } from '../utils/helpers.js';
@@ -120,7 +121,10 @@ export async function handlePackConversion(ctx, input) {
                     `📲 <b>طريقة الإضافة لواتساب:</b>\n` +
                     `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker US</b> (أو افتح التطبيق واضغط على <b>استيراد حزمة</b>).\n` +
                     `2. اضغط على <b>إضافة إلى WhatsApp</b> أو <b>WhatsApp Business</b> للإضافة فوراً!`,
-                parse_mode: 'HTML'
+                parse_mode: 'HTML',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback('📲 تحميل تطبيق Sticker Maker US (APK)', 'download_app')]
+                ])
             });
         }
         // مسح رسالة التحميل المؤقتة
