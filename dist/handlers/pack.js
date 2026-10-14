@@ -28,15 +28,22 @@ export async function handlePackConversion(ctx, input) {
             return;
         }
         const countToConvert = Math.min(totalStickers, config.maxPackStickers);
+        const totalPartsEstimate = Math.ceil(countToConvert / 30);
+        const partsNote = totalPartsEstimate > 1
+            ? `• <b>سيتم التقسيم إلى:</b> ${totalPartsEstimate} أجزاء (30 استكر لكل حزمة كحد أقصى لواتساب)\n`
+            : '';
         await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `📦 <b>تم العثور على الحزمة:</b>\n` +
             `• <b>الاسم:</b> ${escapeHtml(stickerSet.title)}\n` +
             `• <b>إجمالي الاستكرات:</b> ${totalStickers}\n` +
-            `• <b>سيتم تحويل:</b> ${countToConvert} استكر\n\n` +
-            `⏳ جاري التحميل والتحويل بمقاييس واتساب (0/${countToConvert})...`, { parse_mode: 'HTML' });
-        const convertedPaths = [];
+            `• <b>سيتم تحويل:</b> ${countToConvert} استكر\n` +
+            partsNote +
+            `\n⏳ جاري التحميل والتحويل بمقاييس واتساب (0/${countToConvert})...`, { parse_mode: 'HTML' });
+        const convertedPaths = new Array(countToConvert);
+        let convertedCount = 0;
         let lastProgressUpdate = Date.now();
-        // 2. تحميل وتحويل الاستكرات
-        for (let i = 0; i < countToConvert; i++) {
+        const CONCURRENCY = 3;
+        // دالة تحميل وتحويل الاستكر
+        const processSticker = async (i) => {
             const stk = stickerSet.stickers[i];
             let type = 'static';
             let ext = '.webp';
@@ -54,57 +61,74 @@ export async function handlePackConversion(ctx, input) {
                 const downloadUrl = await getFileDownloadUrl(ctx.telegram, stk.file_id);
                 await downloadFile(downloadUrl, rawPath);
                 await convertSticker(rawPath, convPath, type);
-                convertedPaths.push(convPath);
+                convertedPaths[i] = convPath;
             }
             catch (err) {
                 console.warn(`تعذر تحويل الاستكر رقم ${i + 1}:`, err.message || err);
             }
-            // تحديث رسالة التقدم كل ثانيتين أو عند آخر استكر
-            const now = Date.now();
-            if (now - lastProgressUpdate > 2500 || i === countToConvert - 1) {
-                lastProgressUpdate = now;
-                await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `⏳ جاري التحميل والتحويل بمقاييس واتساب (${i + 1}/${countToConvert})...\n` +
-                    `[${'█'.repeat(Math.round(((i + 1) / countToConvert) * 10))}${'░'.repeat(10 - Math.round(((i + 1) / countToConvert) * 10))}]`).catch(() => { });
+            finally {
+                convertedCount++;
+                const now = Date.now();
+                if (now - lastProgressUpdate > 2500 || convertedCount === countToConvert) {
+                    lastProgressUpdate = now;
+                    const pct = Math.round((convertedCount / countToConvert) * 10);
+                    await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `⏳ جاري التحميل والتحويل بمقاييس واتساب (${convertedCount}/${countToConvert})...\n` +
+                        `[${'█'.repeat(pct)}${'░'.repeat(10 - pct)}]`).catch(() => { });
+                }
             }
-        }
-        if (convertedPaths.length === 0) {
+        };
+        // تشغيل التحويل بالتوازي لزيادة السرعة
+        let nextIndex = 0;
+        const workers = Array.from({ length: Math.min(CONCURRENCY, countToConvert) }, async () => {
+            while (nextIndex < countToConvert) {
+                const currentIdx = nextIndex++;
+                await processSticker(currentIdx);
+            }
+        });
+        await Promise.all(workers);
+        const validPaths = convertedPaths.filter(Boolean);
+        if (validPaths.length === 0) {
             throw new Error('فشل تحويل أي استكر من الحزمة!');
         }
-        // 3. تجهيز الحزمة بصيغة .wastickers و .zip
-        await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `🗜️ جاري تجميع الحزمة في ملف .wastickers لتطبيق Sticker Maker...`).catch(() => { });
+        // 3. تجهيز الحزم وتقسيمها إلى 30 استكر لكل ملف
+        await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `🗜️ جاري تجميع الحزم وتقسيمها لمقاس واتساب (30 استكر لكل حزمة)...`).catch(() => { });
         const botInfo = await ctx.telegram.getMe();
         const botUsername = botInfo.username ? `@${botInfo.username}` : 'StickerBot';
         const packaged = await packageStickers({
             title: botUsername,
             author: botUsername,
-            stickerPaths: convertedPaths,
+            stickerPaths: validPaths,
             outputDir: sessionDir
         });
-        const wastickersStats = await fs.stat(packaged.wastickersPath);
+        // 4. إرسال أجزاء الحزم (.wastickers) مقسمة بحد أقصى 30 استكر لكل جزء
+        for (const part of packaged.parts) {
+            const partStats = await fs.stat(part.wastickersPath);
+            const partInfoText = part.totalParts > 1
+                ? ` (الجزء ${part.partNumber} من ${part.totalParts})`
+                : '';
+            await ctx.replyWithDocument({
+                source: part.wastickersPath,
+                filename: path.basename(part.wastickersPath)
+            }, {
+                caption: `🎉 <b>تم تجهيز حزمة واتساب${partInfoText}!</b>\n\n` +
+                    `• <b>اسم الحزمة لواتساب:</b> ${escapeHtml(part.title)}\n` +
+                    `• <b>الاستكرات في هذا الجزء:</b> ${part.count} استكر (حد واتساب 30)\n` +
+                    `• <b>الحزمة الأصلية:</b> ${escapeHtml(stickerSet.title)}\n` +
+                    `• <b>الحجم:</b> ${formatBytes(partStats.size)}\n\n` +
+                    `📲 <b>طريقة الإضافة لواتساب:</b>\n` +
+                    `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker</b>.\n` +
+                    `2. اضغط على <b>Add to WhatsApp</b> للإضافة فوراً!`,
+                parse_mode: 'HTML'
+            });
+        }
+        // 5. إرسال ملف .zip شامل يحتوي على كل الاستكرات
         const zipStats = await fs.stat(packaged.zipPath);
-        // 4. إرسال ملف .wastickers لتطبيقات الاستكرات (مثل Sticker Maker)
-        await ctx.replyWithDocument({
-            source: packaged.wastickersPath,
-            filename: path.basename(packaged.wastickersPath)
-        }, {
-            caption: `🎉 <b>تم تجهيز حزمة واتساب بنجاح!</b>\n\n` +
-                `• <b>اسم الحزمة لواتساب:</b> ${escapeHtml(botUsername)}\n` +
-                `• <b>الحزمة الأصلية:</b> ${escapeHtml(stickerSet.title)}\n` +
-                `• <b>الاستكرات المحولة:</b> ${packaged.count}\n` +
-                `• <b>الحجم:</b> ${formatBytes(wastickersStats.size)}\n\n` +
-                `📲 <b>طريقة الاستخدام على الهاتف:</b>\n` +
-                `1. اضغط على الملف أعلاه واختر <b>"فتح بواسطة / Open With"</b>.\n` +
-                `2. اختر تطبيق <b>Sticker Maker</b>.\n` +
-                `3. اضغط على <b>"Add to WhatsApp"</b> وستضاف الحزمة لواتساب باسم: <b>${escapeHtml(botUsername)}</b>!`,
-            parse_mode: 'HTML'
-        });
-        // 5. إرسال ملف .zip لخيارات الاستخدام البديلة
         await ctx.replyWithDocument({
             source: packaged.zipPath,
             filename: path.basename(packaged.zipPath)
         }, {
-            caption: `📁 <b>نسخة أرشيف ZIP للملفات:</b>\n` +
-                `يحتوي على كافة ملفات WebP (512×512) للاستخدام على الكمبيوتر أو الاستخراج اليدوي (${formatBytes(zipStats.size)}).`,
+            caption: `📁 <b>ملف ZIP شامل لجميع استكرات الحزمة:</b>\n` +
+                `يحتوي على كافة استكرات الحزمة (${packaged.totalStickers} استكر) بصيغة WebP بمقاس 512×512 (${formatBytes(zipStats.size)}).`,
             parse_mode: 'HTML'
         });
         // مسح رسالة التحميل المؤقتة

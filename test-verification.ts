@@ -51,9 +51,10 @@ async function runTest() {
   });
 
   console.log(`✅ نتيجة إنشاء الحزمة:
-• مسار .wastickers: ${packResult.wastickersPath}
+• عدد الأجزاء: ${packResult.parts.length}
+• مسار الجزء الأول: ${packResult.parts[0]?.wastickersPath}
 • مسار .zip: ${packResult.zipPath}
-• عدد الاستكرات: ${packResult.count}`);
+• إجمالي الاستكرات: ${packResult.totalStickers}`);
 
   // تنظيف مجلد الاختبار
   await fs.rm(testDir, { recursive: true, force: true });

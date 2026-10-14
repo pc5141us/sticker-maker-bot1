@@ -13,7 +13,9 @@ export function createBot() {
     if (!config.botToken) {
         throw new Error('لم يتم العثور على BOT_TOKEN في المتغيرات البيئية.');
     }
-    const bot = new Telegraf(config.botToken);
+    const bot = new Telegraf(config.botToken, {
+        handlerTimeout: 900_000 // 15 دقيقة لمنع انتهاء المهلة في الحزم الكبيرة
+    });
     // 1. الأوامر الأساسية
     bot.start(handleStart);
     bot.help(handleHelp);
