@@ -58,14 +58,17 @@ export async function handlePackConversion(ctx: Context, input: string) {
       `• <b>إجمالي الاستكرات:</b> ${totalStickers}\n` +
       `• <b>سيتم تحويل:</b> ${countToConvert} استكر\n` +
       partsNote +
-      `\n⏳ جاري التحميل والتحويل بمقاييس واتساب (0/${countToConvert})...`,
+      `\n⏳ جاري التحميل والتحويل السريع بمقاييس واتساب (0/${countToConvert})...`,
       { parse_mode: 'HTML' }
     );
 
     const convertedPaths: string[] = new Array(countToConvert);
     let convertedCount = 0;
     let lastProgressUpdate = Date.now();
-    const CONCURRENCY = 3;
+    
+    // ضبط التوازي الذكي لسرعة قصوى
+    const isAnimatedPack = stickerSet.stickers.some((s: any) => s.is_animated);
+    const CONCURRENCY = isAnimatedPack ? 3 : 6;
 
     // دالة تحميل وتحويل الاستكر
     const processSticker = async (i: number) => {
@@ -93,14 +96,14 @@ export async function handlePackConversion(ctx: Context, input: string) {
       } finally {
         convertedCount++;
         const now = Date.now();
-        if (now - lastProgressUpdate > 2500 || convertedCount === countToConvert) {
+        if (now - lastProgressUpdate > 2000 || convertedCount === countToConvert) {
           lastProgressUpdate = now;
           const pct = Math.round((convertedCount / countToConvert) * 10);
           await ctx.telegram.editMessageText(
             ctx.chat!.id,
             statusMsg.message_id,
             undefined,
-            `⏳ جاري التحميل والتحويل بمقاييس واتساب (${convertedCount}/${countToConvert})...\n` +
+            `⏳ جاري التحميل والتحويل السريع (${convertedCount}/${countToConvert})...\n` +
             `[${'█'.repeat(pct)}${'░'.repeat(10 - pct)}]`
           ).catch(() => {});
         }
@@ -159,8 +162,8 @@ export async function handlePackConversion(ctx: Context, input: string) {
             `• <b>الحزمة الأصلية:</b> ${escapeHtml(stickerSet.title)}\n` +
             `• <b>الحجم:</b> ${formatBytes(partStats.size)}\n\n` +
             `📲 <b>طريقة الإضافة لواتساب:</b>\n` +
-            `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker</b>.\n` +
-            `2. اضغط على <b>Add to WhatsApp</b> للإضافة فوراً!`,
+            `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker US</b> (أو افتح التطبيق واضغط على <b>استيراد حزمة</b>).\n` +
+            `2. اضغط على <b>إضافة إلى WhatsApp</b> أو <b>WhatsApp Business</b> للإضافة فوراً!`,
           parse_mode: 'HTML'
         }
       );

@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from 'ffmpeg-static';
+import { tgsEngine } from './tgs-engine.js';
 
 // ضبط مسار ffmpeg تلقائياً
 const ffmpegPath = (ffmpegInstaller as any)?.default || ffmpegInstaller;
@@ -14,31 +14,40 @@ if (typeof ffmpegPath === 'string') {
 export type StickerType = 'static' | 'video' | 'animated';
 
 /**
- * تحويل الاستكر الثابت (WebP / PNG) إلى معايير واتساب:
- * - الأبعاد: 512×512 بكسل تماماً (مع حواف شفافة للحفاظ على النسبة الأصلية)
+ * تحويل الاستكر الثابت (WebP / PNG) إلى معايير واتساب بسرعة فائقة:
+ * - الأبعاد: 512×512 بكسل (مع حواف شفافة للحفاظ على النسبة الأصلية)
  * - الحجم: أقل من 100 كيلوبايت
  * - الصيغة: WebP
  */
 export async function convertStaticSticker(inputPath: string, outputPath: string): Promise<string> {
-  let quality = 90;
-  
+  // التحقق أولاً إذا كان الملف جاهزاً ومطابقاً للشروط لتوفير وقت المعالجة
+  try {
+    const stats = await fs.stat(inputPath);
+    if (stats.size <= 96 * 1024 && inputPath.endsWith('.webp')) {
+      const meta = await sharp(inputPath).metadata();
+      if (meta.width === 512 && meta.height === 512 && meta.format === 'webp') {
+        await fs.copyFile(inputPath, outputPath);
+        return outputPath;
+      }
+    }
+  } catch (_) {}
+
+  // تحويل فائق السرعة باستخدام effort: 2 بدلاً من البحث البطيء
   let buffer = await sharp(inputPath)
     .resize(512, 512, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-    .webp({ quality, effort: 6 })
+    .webp({ quality: 80, effort: 2 })
     .toBuffer();
 
-  // ضبط الجودة لتظل أقل من 100 كيلوبايت (الحد الأقصى لواتساب)
-  while (buffer.length > 98 * 1024 && quality > 25) {
-    quality -= 10;
+  if (buffer.length > 98 * 1024) {
     buffer = await sharp(inputPath)
       .resize(512, 512, {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 }
       })
-      .webp({ quality, effort: 6 })
+      .webp({ quality: 60, effort: 2 })
       .toBuffer();
   }
 
@@ -47,10 +56,10 @@ export async function convertStaticSticker(inputPath: string, outputPath: string
 }
 
 /**
- * تحويل استكر الفيديو (WebM VP9) إلى استكر متحرك لواتساب:
+ * تحويل استكر الفيديو (WebM VP9) إلى استكر متحرك لواتساب بسرعة فائقة:
  * - الأبعاد: 512×512 بكسل
  * - المدة: 3 ثواني كحد أقصى
- * - معدل الإطارات: 15-20 إطار في الثانية
+ * - معدل الإطارات: 14 إطار في الثانية
  * - التكرار: لا نهائي (loop 0)
  * - الحجم: أقل من 500 كيلوبايت
  */
@@ -59,32 +68,32 @@ export async function convertVideoSticker(inputPath: string, outputPath: string)
     ffmpeg(inputPath)
       .setDuration(3)
       .outputOptions([
-        '-vf fps=16,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
+        '-vf fps=14,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
         '-vcodec libwebp',
         '-lossless 0',
-        '-compression_level 4',
-        '-q:v 55',
+        '-compression_level 1',
+        '-q:v 40',
         '-loop 0',
-        '-an'
+        '-an',
+        '-threads 0'
       ])
       .save(outputPath)
       .on('end', async () => {
         try {
-          // التحقق من حجم الملف الناتج
           const stats = await fs.stat(outputPath);
-          if (stats.size > 500 * 1024) {
-            // إذا تجاوز 500 كيلوبايت، نعيد الضغط بجودة أقل ومعدل إطارات 12fps
+          if (stats.size > 480 * 1024) {
             const compressedPath = outputPath.replace('.webp', '_comp.webp');
             ffmpeg(inputPath)
               .setDuration(3)
               .outputOptions([
-                '-vf fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
+                '-vf fps=12,scale=384:384:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000',
                 '-vcodec libwebp',
                 '-lossless 0',
-                '-compression_level 5',
-                '-q:v 35',
+                '-compression_level 2',
+                '-q:v 25',
                 '-loop 0',
-                '-an'
+                '-an',
+                '-threads 0'
               ])
               .save(compressedPath)
               .on('end', async () => {
@@ -106,46 +115,10 @@ export async function convertVideoSticker(inputPath: string, outputPath: string)
 }
 
 /**
- * تحويل الاستكر المتحرك بصيغة TGS (Lottie vector)
+ * تحويل الاستكر المتحرك بصيغة TGS (Lottie vector) عبر محرك TgsEngine فائق السرعة
  */
 export async function convertTgsSticker(inputPath: string, outputPath: string): Promise<string> {
-  try {
-    // استخدام tgs-to لإنتاج GIF ثم تحويله بواسطة sharp لضمان العمل على Apple Silicon
-    // @ts-ignore
-    const TGS = (await import('tgs-to')).default || (await import('tgs-to'));
-    const tgs = new TGS(inputPath);
-    const tempGif = outputPath.replace('.webp', '_temp.gif');
-    await tgs.convertToGif(tempGif);
-
-    if (fsSync.existsSync(tempGif)) {
-      await sharp(tempGif, { animated: true })
-        .resize(512, 512, {
-          fit: 'contain',
-          background: { r: 0, g: 0, b: 0, alpha: 0 }
-        })
-        .webp({ quality: 50, effort: 5, loop: 0 })
-        .toFile(outputPath);
-
-      await fs.unlink(tempGif).catch(() => {});
-
-      // ضمان أن حجم الاستكر لا يتعدى 500 كيلوبايت وفق معايير واتساب
-      const stats = await fs.stat(outputPath);
-      if (stats.size > 480 * 1024) {
-        const compressedPath = outputPath.replace('.webp', '_comp.webp');
-        await sharp(outputPath, { animated: true })
-          .webp({ quality: 30, effort: 6, loop: 0 })
-          .toFile(compressedPath);
-        await fs.rename(compressedPath, outputPath);
-      }
-
-      return outputPath;
-    }
-  } catch (error: any) {
-    console.warn('تحذير أثناء تحويل TGS عبر tgs-to:', error.message);
-  }
-
-  // في حال تعذر تشغيل محرك Lottie، يتم استخراج الإطار الأول كاستكر عالي الدقة لواتساب
-  throw new Error('تعذر معالجة استكر TGS المتحرك، يرجى التأكد من توفر مشغل Lottie أو إرسال استكر ثابت/فيديو.');
+  return await tgsEngine.convertTgs(inputPath, outputPath);
 }
 
 /**
