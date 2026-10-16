@@ -9,7 +9,8 @@
     "build": "tsc",
     "start": "caffeinate -i -s -m node dist/index.js",
     "test": "tsx test-verification.ts",
-    "set-webhook": "tsx scripts/set-webhook.ts"
+    "set-webhook": "tsx scripts/set-webhook.ts",
+    "encrypt": "tsx scripts/encrypt-env.ts"
   },
   "keywords": [
     "telegram",

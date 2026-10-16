@@ -1,5 +1,4 @@
 import fs from 'fs/promises';
-import fsSync from 'fs';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from 'ffmpeg-static';
@@ -32,13 +31,13 @@ export async function convertStaticSticker(inputPath: string, outputPath: string
     }
   } catch (_) {}
 
-  // تحويل فائق السرعة باستخدام effort: 2 بدلاً من البحث البطيء
+  // تحويل فائق السرعة باستخدام effort: 1 لسرعة قصوى
   let buffer = await sharp(inputPath)
     .resize(512, 512, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-    .webp({ quality: 80, effort: 2 })
+    .webp({ quality: 80, effort: 1 })
     .toBuffer();
 
   if (buffer.length > 98 * 1024) {
@@ -47,7 +46,7 @@ export async function convertStaticSticker(inputPath: string, outputPath: string
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 }
       })
-      .webp({ quality: 60, effort: 2 })
+      .webp({ quality: 60, effort: 1 })
       .toBuffer();
   }
 

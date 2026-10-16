@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 /**
- * إنشاء أيقونة الحزمة tray.png بمقاس 96×96 وخلفية شفافة
+ * إنشاء أيقونة الحزمة tray.png بمقاس 96×96 وخلفية شفافة بسرعة فائقة
  */
 export async function createTrayIcon(sourcePath, outputPath) {
     await sharp(sourcePath)
@@ -11,11 +11,12 @@ export async function createTrayIcon(sourcePath, outputPath) {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-        .png()
+        .png({ compressionLevel: 1, effort: 1 })
         .toFile(outputPath);
 }
 /**
- * تجميع الاستكرات وتقسيمها تلقائياً إلى حزم بحد أقصى 30 استكر لكل حزمة (وفق متطلبات واتساب)
+ * تجميع الاستكرات وتقسيمها تلقائياً بسرعة فائقة إلى حزم بحد أقصى 30 استكر لكل حزمة (وفق متطلبات واتساب)
+ * مع المعالجة المتوازية وضغط zlib السريع
  */
 export async function packageStickers(options) {
     const { title, author, stickerPaths, outputDir, traySourcePath } = options;
@@ -28,9 +29,8 @@ export async function packageStickers(options) {
     const botTag = '@stickermakerusbot';
     const packBaseTitle = (title && title.startsWith('@')) ? title : botTag;
     const totalParts = chunks.length;
-    const parts = [];
-    for (let idx = 0; idx < totalParts; idx++) {
-        const chunk = chunks[idx];
+    // إنشاء جميع أجزاء الحزم بالتوازي لسرعة تجميع فائقة
+    const parts = await Promise.all(chunks.map(async (chunk, idx) => {
         const partNumber = idx + 1;
         const partTitle = totalParts > 1 ? `${packBaseTitle} (P${partNumber})` : packBaseTitle;
         const fileNameSuffix = totalParts > 1 ? `_part${partNumber}` : '';
@@ -41,10 +41,10 @@ export async function packageStickers(options) {
         if (iconSource && fs.existsSync(iconSource)) {
             await createTrayIcon(iconSource, trayPath);
         }
-        // 2. إنشاء أرشيف .wastickers لهذا الجزء
+        // 2. إنشاء أرشيف .wastickers لهذا الجزء بسرعة قصوى (level: 1)
         await new Promise((resolve, reject) => {
             const output = fs.createWriteStream(wastickersPath);
-            const archive = new ZipArchive({ zlib: { level: 9 } });
+            const archive = new ZipArchive({ zlib: { level: 1 } });
             output.on('close', () => resolve());
             archive.on('error', (err) => reject(err));
             archive.pipe(output);
@@ -62,14 +62,14 @@ export async function packageStickers(options) {
             });
             archive.finalize();
         });
-        parts.push({
+        return {
             wastickersPath,
             count: chunk.length,
             partNumber,
             totalParts,
             title: partTitle
-        });
-    }
+        };
+    }));
     return {
         parts,
         totalStickers: stickerPaths.length
