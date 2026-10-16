@@ -2,25 +2,44 @@ import fs from 'fs';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 /**
- * الحصول على رابط تحميل الملف من تليجرام
+ * الحصول على رابط تحميل الملف من تليجرام مع إعادة المحاولة التلقائية
  */
-export async function getFileDownloadUrl(tg, fileId) {
+export async function getFileDownloadUrl(tg, fileId, retries = 2) {
     const telegram = tg?.telegram || tg;
-    const fileLink = await telegram.getFileLink(fileId);
-    return fileLink.toString();
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const fileLink = await telegram.getFileLink(fileId);
+            return fileLink.toString();
+        }
+        catch (err) {
+            if (attempt === retries)
+                throw err;
+            await new Promise(r => setTimeout(r, 600));
+        }
+    }
+    throw new Error('فشل جلب رابط الملف من تليجرام');
 }
 /**
- * تحميل الملف وحفظه محلياً في المسار المحدد
+ * تحميل الملف وحفظه محلياً في المسار المحدد مع إعادة المحاولة التلقائية
  */
-export async function downloadFile(url, destinationPath) {
-    const response = await fetch(url);
-    if (!response.ok || !response.body) {
-        throw new Error(`فشل تحميل الملف: ${response.status} ${response.statusText}`);
+export async function downloadFile(url, destinationPath, retries = 2) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok || !response.body) {
+                throw new Error(`فشل تحميل الملف: ${response.status} ${response.statusText}`);
+            }
+            const nodeStream = Readable.fromWeb(response.body);
+            const fileWriteStream = fs.createWriteStream(destinationPath);
+            await pipeline(nodeStream, fileWriteStream);
+            return;
+        }
+        catch (err) {
+            if (attempt === retries)
+                throw err;
+            await new Promise(r => setTimeout(r, 600));
+        }
     }
-    // تحويل web stream إلى Node.js readable stream
-    const nodeStream = Readable.fromWeb(response.body);
-    const fileWriteStream = fs.createWriteStream(destinationPath);
-    await pipeline(nodeStream, fileWriteStream);
 }
 /**
  * جلب تفاصيل حزمة استكرات تليجرام كاملة

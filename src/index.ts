@@ -45,6 +45,15 @@ BOT_TOKEN=123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ
     dropPendingUpdates: false
   });
 
+  // فحص النبض التلقائي (Heartbeat) لمنع تجمد الاتصال وضمان سرعة الاستجابة اللحظية بعد فترات الخمول
+  setInterval(async () => {
+    try {
+      await bot.telegram.getMe();
+    } catch (err: any) {
+      console.warn('⚠️ فحص النبض: تنشيط الاتصال بعد الخمول...', err.message);
+    }
+  }, 45000).unref();
+
   // إيقاف آمن عند الخروج
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));

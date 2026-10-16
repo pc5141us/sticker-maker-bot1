@@ -9,11 +9,13 @@ import { extractPackName } from './utils/helpers.js';
 
 let botInstance: Telegraf | null = null;
 
-// وكيل HTTPS بمؤقت زمني لضمان إعادة الاتصال التلقائي في حال انقطاع الشبكة أو نوم الجهاز
+// وكيل HTTPS محسن فائق الاستجابة لمنع تجمد الاتصال وحل مشكلة بطء الاستجابة بعد الخمول
 const httpsAgent = new https.Agent({
   keepAlive: true,
-  keepAliveMsecs: 10000,
-  timeout: 35000
+  keepAliveMsecs: 5000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 20000
 });
 
 export function createBot(): Telegraf {
@@ -31,6 +33,17 @@ export function createBot(): Telegraf {
     },
     handlerTimeout: 900_000 // 15 دقيقة لمنع انتهاء المهلة في الحزم الكبيرة
   });
+
+  // تحسين سرعة استقبال الرسائل بعد فترات الخمول:
+  // افتراضياً تليجرام ينتظر 50 ثانية في getUpdates مما يجعل المقبس (Socket) يتجمد عند انقطاع الشبكة أو خمول الجهاز
+  // نضبط مهلة الاستطلاع إلى 10 ثوانٍ لضمان تدفق البيانات بشكل دائم وسريع
+  const originalCallApi = bot.telegram.callApi.bind(bot.telegram);
+  (bot.telegram as any).callApi = function (method: string, data: any, abortController?: any) {
+    if (method === 'getUpdates' && data && typeof data === 'object') {
+      data.timeout = 10;
+    }
+    return (originalCallApi as any)(method, data, abortController);
+  };
 
   // تسجيل الأحداث المستلمة للمتابعة المباشرة
   bot.use(async (ctx, next) => {
@@ -52,7 +65,7 @@ export function createBot(): Telegraf {
 
   // زر التفاعل الداخلي لتحميل التطبيق (Inline Callback)
   bot.action('download_app', async (ctx) => {
-    await ctx.answerCbQuery('📲 جاري إرسال التطبيق...');
+    await ctx.answerCbQuery('📲 جاري إرسال التطبيق...').catch(() => {});
     await sendAppApk(ctx);
   });
 

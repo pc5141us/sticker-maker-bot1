@@ -76,7 +76,7 @@ export class TgsEngine {
                 catch (_) { }
                 this.browser = null;
             }
-        }, 30000);
+        }, 300000); // إبقاء المتصفح في الذاكرة 5 دقائق بعد الاستخدام لمنع بطء التشغيل البارد
     }
     /**
      * Convert a .tgs sticker file to a WhatsApp-compatible animated WebP (< 500KB, 512x512)
