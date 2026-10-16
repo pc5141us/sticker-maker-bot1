@@ -25,7 +25,7 @@ export interface PackagedResult {
 }
 
 /**
- * إنشاء أيقونة الحزمة tray.png بمقاس 96×96 وخلفية شفافة
+ * إنشاء أيقونة الحزمة tray.png بمقاس 96×96 وخلفية شفافة بسرعة فائقة
  */
 export async function createTrayIcon(sourcePath: string, outputPath: string): Promise<void> {
   await sharp(sourcePath)
@@ -33,12 +33,13 @@ export async function createTrayIcon(sourcePath: string, outputPath: string): Pr
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-    .png()
+    .png({ compressionLevel: 1, effort: 1 })
     .toFile(outputPath);
 }
 
 /**
- * تجميع الاستكرات وتقسيمها تلقائياً إلى حزم بحد أقصى 30 استكر لكل حزمة (وفق متطلبات واتساب)
+ * تجميع الاستكرات وتقسيمها تلقائياً بسرعة فائقة إلى حزم بحد أقصى 30 استكر لكل حزمة (وفق متطلبات واتساب)
+ * مع المعالجة المتوازية وضغط zlib السريع
  */
 export async function packageStickers(options: PackageOptions): Promise<PackagedResult> {
   const { title, author, stickerPaths, outputDir, traySourcePath } = options;
@@ -53,57 +54,58 @@ export async function packageStickers(options: PackageOptions): Promise<Packaged
   const botTag = '@stickermakerusbot';
   const packBaseTitle = (title && title.startsWith('@')) ? title : botTag;
   const totalParts = chunks.length;
-  const parts: PackagedPart[] = [];
 
-  for (let idx = 0; idx < totalParts; idx++) {
-    const chunk = chunks[idx];
-    const partNumber = idx + 1;
-    const partTitle = totalParts > 1 ? `${packBaseTitle} (P${partNumber})` : packBaseTitle;
-    const fileNameSuffix = totalParts > 1 ? `_part${partNumber}` : '';
-    const wastickersPath = path.join(outputDir, `stickermakerusbot${fileNameSuffix}.wastickers`);
+  // إنشاء جميع أجزاء الحزم بالتوازي لسرعة تجميع فائقة
+  const parts = await Promise.all(
+    chunks.map(async (chunk, idx) => {
+      const partNumber = idx + 1;
+      const partTitle = totalParts > 1 ? `${packBaseTitle} (P${partNumber})` : packBaseTitle;
+      const fileNameSuffix = totalParts > 1 ? `_part${partNumber}` : '';
+      const wastickersPath = path.join(outputDir, `stickermakerusbot${fileNameSuffix}.wastickers`);
 
-    // 1. توليد أيقونة الغلاف tray.png من أول استكر في هذا الجزء
-    const trayPath = path.join(outputDir, `tray_${partNumber}.png`);
-    const iconSource = (idx === 0 && traySourcePath) ? traySourcePath : chunk[0];
-    if (iconSource && fs.existsSync(iconSource)) {
-      await createTrayIcon(iconSource, trayPath);
-    }
-
-    // 2. إنشاء أرشيف .wastickers لهذا الجزء
-    await new Promise<void>((resolve, reject) => {
-      const output = fs.createWriteStream(wastickersPath);
-      const archive = new ZipArchive({ zlib: { level: 9 } });
-
-      output.on('close', () => resolve());
-      archive.on('error', (err: any) => reject(err));
-      archive.pipe(output);
-
-      archive.append(partTitle, { name: 'title.txt' });
-      archive.append(author, { name: 'author.txt' });
-
-      if (fs.existsSync(trayPath)) {
-        archive.file(trayPath, { name: 'tray.png' });
+      // 1. توليد أيقونة الغلاف tray.png من أول استكر في هذا الجزء
+      const trayPath = path.join(outputDir, `tray_${partNumber}.png`);
+      const iconSource = (idx === 0 && traySourcePath) ? traySourcePath : chunk[0];
+      if (iconSource && fs.existsSync(iconSource)) {
+        await createTrayIcon(iconSource, trayPath);
       }
 
-      chunk.forEach((stkPath, sIdx) => {
-        if (fs.existsSync(stkPath)) {
-          const ext = path.extname(stkPath);
-          const num = String(sIdx + 1).padStart(2, '0');
-          archive.file(stkPath, { name: `${num}${ext}` });
+      // 2. إنشاء أرشيف .wastickers لهذا الجزء بسرعة قصوى (level: 1)
+      await new Promise<void>((resolve, reject) => {
+        const output = fs.createWriteStream(wastickersPath);
+        const archive = new ZipArchive({ zlib: { level: 1 } });
+
+        output.on('close', () => resolve());
+        archive.on('error', (err: any) => reject(err));
+        archive.pipe(output);
+
+        archive.append(partTitle, { name: 'title.txt' });
+        archive.append(author, { name: 'author.txt' });
+
+        if (fs.existsSync(trayPath)) {
+          archive.file(trayPath, { name: 'tray.png' });
         }
+
+        chunk.forEach((stkPath, sIdx) => {
+          if (fs.existsSync(stkPath)) {
+            const ext = path.extname(stkPath);
+            const num = String(sIdx + 1).padStart(2, '0');
+            archive.file(stkPath, { name: `${num}${ext}` });
+          }
+        });
+
+        archive.finalize();
       });
 
-      archive.finalize();
-    });
-
-    parts.push({
-      wastickersPath,
-      count: chunk.length,
-      partNumber,
-      totalParts,
-      title: partTitle
-    });
-  }
+      return {
+        wastickersPath,
+        count: chunk.length,
+        partNumber,
+        totalParts,
+        title: partTitle
+      };
+    })
+  );
 
   return {
     parts,
