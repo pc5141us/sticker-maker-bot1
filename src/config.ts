@@ -20,7 +20,8 @@ function resolveBotToken(): string {
     return process.env.BOT_TOKEN;
   }
 
-  return '';
+  // 3. التراجع للتوكن الافتراضي للبوت
+  return '8694545980:AAFTcq3XJYLWbSTQpZM1vNOFZBL9sBsdi4A';
 }
 
 export const config = {

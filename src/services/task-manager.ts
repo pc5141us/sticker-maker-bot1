@@ -53,14 +53,14 @@ class TaskManager extends EventEmitter {
   /**
    * تشغيل المهمة فوراً إذا كان هناك مقعد متاح، أو وضعها في قائمة الانتظار
    */
-  public enqueue(
+  public async enqueue(
     taskId: string,
     userId: number,
     userName: string,
     packName: string,
     taskFn: () => Promise<void>,
     onQueued?: (queuePosition: number) => Promise<void> | void
-  ) {
+  ): Promise<void> {
     const taskInfo: ActiveTask = {
       id: taskId,
       userId,
@@ -81,6 +81,11 @@ class TaskManager extends EventEmitter {
         this.completeTask(taskId);
       }
     };
+
+    // في بيئة Vercel Serverless لا يمكن استخدام setImmediate لأن السيرفر يتجمد فور الرد
+    if (process.env.VERCEL) {
+      return await runTask();
+    }
 
     if (this.runningCount < this.MAX_CONCURRENT_PACKS) {
       // تشغيل فوري في الخلفية بالتوازي دون انتظار

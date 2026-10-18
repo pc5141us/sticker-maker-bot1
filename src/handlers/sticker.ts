@@ -30,8 +30,8 @@ export async function handleSingleSticker(ctx: Context) {
     reply_to_message_id: replyToMessageId
   } as any);
 
-  // تشغيل المعالجة في الخلفية لضمان عدم حجز حلقة الاستقبال لباقي المستخدمين
-  setImmediate(async () => {
+  // تشغيل المعالجة (مباشرة على Vercel أو في الخلفية على السيرفرات الدائمة)
+  const processSticker = async () => {
     const sessionId = `sticker_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const sessionDir = path.join(config.tempDir, sessionId);
 
@@ -88,5 +88,11 @@ export async function handleSingleSticker(ctx: Context) {
     } finally {
       await removeDir(sessionDir);
     }
-  });
+  };
+
+  if (process.env.VERCEL) {
+    await processSticker();
+  } else {
+    setImmediate(processSticker);
+  }
 }

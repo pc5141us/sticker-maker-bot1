@@ -28,8 +28,8 @@ export async function handlePackConversion(ctx, input, options) {
     const taskId = `pack_${packName}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const userId = ctx.from?.id || 0;
     const userName = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'مستخدم');
-    // تشغيل مهمة التحويل في نظام المهام المتزامنة بالتوازي (Non-blocking Concurrency)
-    taskManager.enqueue(taskId, userId, userName, packName, async () => {
+    // تشغيل مهمة التحويل في نظام المهام المتزامنة بالتوازي
+    await taskManager.enqueue(taskId, userId, userName, packName, async () => {
         const sessionId = `pack_${packName}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         const sessionDir = path.join(config.tempDir, sessionId);
         const stickersDir = path.join(sessionDir, 'stickers');

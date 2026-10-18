@@ -44,8 +44,8 @@ export async function handlePackConversion(ctx: Context, input: string, options?
   const userId = ctx.from?.id || 0;
   const userName = ctx.from?.username ? `@${ctx.from.username}` : (ctx.from?.first_name || 'مستخدم');
 
-  // تشغيل مهمة التحويل في نظام المهام المتزامنة بالتوازي (Non-blocking Concurrency)
-  taskManager.enqueue(
+  // تشغيل مهمة التحويل في نظام المهام المتزامنة بالتوازي
+  await taskManager.enqueue(
     taskId,
     userId,
     userName,

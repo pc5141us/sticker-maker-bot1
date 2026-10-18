@@ -5,9 +5,14 @@ class UserDatabase {
     dbPath;
     saveTimeout = null;
     constructor() {
-        const dataDir = path.resolve(process.cwd(), 'data');
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
+        const dataDir = process.env.VERCEL ? '/tmp/data' : path.resolve(process.cwd(), 'data');
+        try {
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+        }
+        catch (e) {
+            console.warn('⚠️ تعذر إنشاء مجلد data:', e.message);
         }
         this.dbPath = path.join(dataDir, 'users.json');
         this.load();
