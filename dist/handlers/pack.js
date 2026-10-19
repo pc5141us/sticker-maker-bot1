@@ -1,4 +1,3 @@
-import { Markup } from 'telegraf';
 import path from 'path';
 import { config } from '../config.js';
 import { ensureDir, removeDir, extractPackName, formatBytes, escapeHtml } from '../utils/helpers.js';
@@ -7,6 +6,7 @@ import { convertSticker, convertStaticSticker } from '../services/converter.js';
 import { tgsEngine } from '../services/tgs-engine.js';
 import { packageStickers } from '../services/packager.js';
 import { taskManager } from '../services/task-manager.js';
+import { getMainKeyboard } from '../utils/keyboard.js';
 import fs from 'fs/promises';
 export async function handlePackConversion(ctx, input, options) {
     const packName = extractPackName(input);
@@ -171,9 +171,7 @@ export async function handlePackConversion(ctx, input, options) {
                         `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker US</b> (أو افتح التطبيق واضغط على <b>استيراد حزمة</b>).\n` +
                         `2. اضغط على <b>إضافة إلى WhatsApp</b> أو <b>WhatsApp Business</b> للإضافة فوراً!`,
                     parse_mode: 'HTML',
-                    ...Markup.inlineKeyboard([
-                        [Markup.button.callback('📲 تحميل تطبيق Sticker Maker US (APK)', 'download_app')]
-                    ])
+                    ...getMainKeyboard(ctx.from?.id)
                 });
             }
             // مسح رسالة التحميل المؤقتة

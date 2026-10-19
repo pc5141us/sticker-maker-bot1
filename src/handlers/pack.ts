@@ -7,6 +7,7 @@ import { convertSticker, convertStaticSticker, StickerType } from '../services/c
 import { tgsEngine } from '../services/tgs-engine.js';
 import { packageStickers } from '../services/packager.js';
 import { taskManager } from '../services/task-manager.js';
+import { getMainKeyboard } from '../utils/keyboard.js';
 import fs from 'fs/promises';
 
 export interface PackConversionOptions {
@@ -231,9 +232,7 @@ export async function handlePackConversion(ctx: Context, input: string, options?
                 `1. اضغط على الملف واختر <b>فتح بواسطة / Open With -> Sticker Maker US</b> (أو افتح التطبيق واضغط على <b>استيراد حزمة</b>).\n` +
                 `2. اضغط على <b>إضافة إلى WhatsApp</b> أو <b>WhatsApp Business</b> للإضافة فوراً!`,
               parse_mode: 'HTML',
-              ...Markup.inlineKeyboard([
-                [Markup.button.callback('📲 تحميل تطبيق Sticker Maker US (APK)', 'download_app')]
-              ])
+              ...getMainKeyboard(ctx.from?.id)
             } as any
           );
         }

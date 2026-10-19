@@ -1,6 +1,7 @@
 import { createBot } from '../src/bot.js';
 import { ensureDir } from '../src/utils/helpers.js';
 import { config } from '../src/config.js';
+import { db } from '../src/services/db.js';
 
 export default async function handler(req: any, res: any) {
   // للتحقق من أن الرابط يعمل في المتصفح
@@ -13,6 +14,11 @@ export default async function handler(req: any, res: any) {
       await ensureDir(config.tempDir);
       const bot = createBot();
       
+      // مزامنة حالة المستخدمين وقائمة الحظر من السحابة قبل معالجة الرسالة
+      await db.syncFromTelegram(bot.telegram, config.adminId).catch((err) => {
+        console.warn('⚠️ خطأ مزامنة السحابة في Webhook:', err.message);
+      });
+
       // استقبال ومعالجة التحديث القادم من تليجرام
       await bot.handleUpdate(req.body);
       return res.status(200).json({ ok: true });
