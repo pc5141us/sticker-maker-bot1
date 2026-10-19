@@ -45,6 +45,11 @@ export class TgsEngine {
     return TgsEngine.instance;
   }
 
+  public isAvailable(): boolean {
+    const p = getChromeExecutablePath();
+    return !!p && fs.existsSync(p);
+  }
+
   private async getBrowser(): Promise<Browser> {
     if (this.idleTimeout) {
       clearTimeout(this.idleTimeout);

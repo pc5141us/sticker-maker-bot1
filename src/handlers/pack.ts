@@ -3,7 +3,8 @@ import path from 'path';
 import { config } from '../config.js';
 import { ensureDir, removeDir, extractPackName, formatBytes, escapeHtml } from '../utils/helpers.js';
 import { getFileDownloadUrl, downloadFile, getStickerSet } from '../services/telegram.js';
-import { convertSticker, StickerType } from '../services/converter.js';
+import { convertSticker, convertStaticSticker, StickerType } from '../services/converter.js';
+import { tgsEngine } from '../services/tgs-engine.js';
 import { packageStickers } from '../services/packager.js';
 import { taskManager } from '../services/task-manager.js';
 import fs from 'fs/promises';
@@ -102,7 +103,7 @@ export async function handlePackConversion(ctx: Context, input: string, options?
         // ضبط التوازي الداخلي للحزمة لسرعة قصوى
         const isAnimatedPack = stickerSet.stickers.some((s: any) => s.is_animated);
         const isVideoPack = stickerSet.stickers.some((s: any) => s.is_video);
-        const CONCURRENCY = isAnimatedPack ? 4 : isVideoPack ? 4 : 12;
+        const CONCURRENCY = (isAnimatedPack && tgsEngine.isAvailable()) ? 4 : isVideoPack ? 4 : 12;
 
         const processSticker = async (i: number) => {
           const stk = stickerSet.stickers[i];
@@ -118,6 +119,21 @@ export async function handlePackConversion(ctx: Context, input: string, options?
 
           const rawPath = path.join(stickersDir, `stk_${i}${ext}`);
           const convPath = path.join(convertedDir, `stk_${i + 1}.webp`);
+          const thumb = (stk as any).thumbnail || (stk as any).thumb;
+
+          // إذا كان استكر متحرك TGS ومحرك Chrome غير متاح على السيرفر (مثل Vercel)، نستخدم مباشرة المعاينة المعتمدة لتوفير الوقت وضمان النجاح 100%
+          if (type === 'animated' && !tgsEngine.isAvailable() && thumb?.file_id) {
+            try {
+              const thumbUrl = await getFileDownloadUrl(ctx.telegram as any, thumb.file_id);
+              const thumbRaw = path.join(stickersDir, `thumb_${i}.webp`);
+              await downloadFile(thumbUrl, thumbRaw);
+              await convertStaticSticker(thumbRaw, convPath);
+              convertedPaths[i] = convPath;
+              return;
+            } catch (thumbErr: any) {
+              console.warn(`تعذر استخدام المعاينة المباشرة للاستكر رقم ${i + 1}:`, thumbErr.message);
+            }
+          }
 
           try {
             const downloadUrl = await getFileDownloadUrl(ctx.telegram as any, stk.file_id);
@@ -125,7 +141,16 @@ export async function handlePackConversion(ctx: Context, input: string, options?
             await convertSticker(rawPath, convPath, type);
             convertedPaths[i] = convPath;
           } catch (err: any) {
-            console.warn(`تعذر تحويل الاستكر رقم ${i + 1}:`, err.message || err);
+            console.warn(`تعذر تحويل الاستكر رقم ${i + 1} (${err.message}). جاري محاولة استخدام الصورة البديلة...`);
+            if (thumb?.file_id && !convertedPaths[i]) {
+              try {
+                const thumbUrl = await getFileDownloadUrl(ctx.telegram as any, thumb.file_id);
+                const thumbRaw = path.join(stickersDir, `thumb_fallback_${i}.webp`);
+                await downloadFile(thumbUrl, thumbRaw);
+                await convertStaticSticker(thumbRaw, convPath);
+                convertedPaths[i] = convPath;
+              } catch (_) {}
+            }
           } finally {
             convertedCount++;
             taskManager.updateTaskProgress(taskId, `${convertedCount}/${countToConvert}`);

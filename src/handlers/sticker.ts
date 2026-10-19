@@ -4,7 +4,8 @@ import fs from 'fs/promises';
 import { config } from '../config.js';
 import { ensureDir, removeDir, formatBytes } from '../utils/helpers.js';
 import { getFileDownloadUrl, downloadFile } from '../services/telegram.js';
-import { convertSticker, StickerType } from '../services/converter.js';
+import { convertSticker, convertStaticSticker, StickerType } from '../services/converter.js';
+import { tgsEngine } from '../services/tgs-engine.js';
 import { handlePackConversion } from './pack.js';
 
 export async function handleSingleSticker(ctx: Context) {
@@ -51,10 +52,33 @@ export async function handleSingleSticker(ctx: Context) {
 
       const inputPath = path.join(sessionDir, `input${inputExt}`);
       const outputPath = path.join(sessionDir, `whatsapp_sticker.webp`);
+      const thumb = (sticker as any).thumbnail || (sticker as any).thumb;
 
-      const downloadUrl = await getFileDownloadUrl(ctx.telegram as any, sticker.file_id);
-      await downloadFile(downloadUrl, inputPath);
-      await convertSticker(inputPath, outputPath, type);
+      let converted = false;
+      if (type === 'animated' && !tgsEngine.isAvailable() && thumb?.file_id) {
+        try {
+          const thumbUrl = await getFileDownloadUrl(ctx.telegram as any, thumb.file_id);
+          await downloadFile(thumbUrl, inputPath);
+          await convertStaticSticker(inputPath, outputPath);
+          converted = true;
+        } catch (_) {}
+      }
+
+      if (!converted) {
+        try {
+          const downloadUrl = await getFileDownloadUrl(ctx.telegram as any, sticker.file_id);
+          await downloadFile(downloadUrl, inputPath);
+          await convertSticker(inputPath, outputPath, type);
+        } catch (err: any) {
+          if (thumb?.file_id) {
+            const thumbUrl = await getFileDownloadUrl(ctx.telegram as any, thumb.file_id);
+            await downloadFile(thumbUrl, inputPath);
+            await convertStaticSticker(inputPath, outputPath);
+          } else {
+            throw err;
+          }
+        }
+      }
 
       const stats = await fs.stat(outputPath);
       const sizeStr = formatBytes(stats.size);

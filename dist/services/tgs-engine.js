@@ -41,6 +41,10 @@ export class TgsEngine {
         }
         return TgsEngine.instance;
     }
+    isAvailable() {
+        const p = getChromeExecutablePath();
+        return !!p && fs.existsSync(p);
+    }
     async getBrowser() {
         if (this.idleTimeout) {
             clearTimeout(this.idleTimeout);

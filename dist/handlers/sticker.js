@@ -3,7 +3,8 @@ import fs from 'fs/promises';
 import { config } from '../config.js';
 import { ensureDir, removeDir, formatBytes } from '../utils/helpers.js';
 import { getFileDownloadUrl, downloadFile } from '../services/telegram.js';
-import { convertSticker } from '../services/converter.js';
+import { convertSticker, convertStaticSticker } from '../services/converter.js';
+import { tgsEngine } from '../services/tgs-engine.js';
 import { handlePackConversion } from './pack.js';
 export async function handleSingleSticker(ctx) {
     // @ts-ignore
@@ -43,9 +44,34 @@ export async function handleSingleSticker(ctx) {
             }
             const inputPath = path.join(sessionDir, `input${inputExt}`);
             const outputPath = path.join(sessionDir, `whatsapp_sticker.webp`);
-            const downloadUrl = await getFileDownloadUrl(ctx.telegram, sticker.file_id);
-            await downloadFile(downloadUrl, inputPath);
-            await convertSticker(inputPath, outputPath, type);
+            const thumb = sticker.thumbnail || sticker.thumb;
+            let converted = false;
+            if (type === 'animated' && !tgsEngine.isAvailable() && thumb?.file_id) {
+                try {
+                    const thumbUrl = await getFileDownloadUrl(ctx.telegram, thumb.file_id);
+                    await downloadFile(thumbUrl, inputPath);
+                    await convertStaticSticker(inputPath, outputPath);
+                    converted = true;
+                }
+                catch (_) { }
+            }
+            if (!converted) {
+                try {
+                    const downloadUrl = await getFileDownloadUrl(ctx.telegram, sticker.file_id);
+                    await downloadFile(downloadUrl, inputPath);
+                    await convertSticker(inputPath, outputPath, type);
+                }
+                catch (err) {
+                    if (thumb?.file_id) {
+                        const thumbUrl = await getFileDownloadUrl(ctx.telegram, thumb.file_id);
+                        await downloadFile(thumbUrl, inputPath);
+                        await convertStaticSticker(inputPath, outputPath);
+                    }
+                    else {
+                        throw err;
+                    }
+                }
+            }
             const stats = await fs.stat(outputPath);
             const sizeStr = formatBytes(stats.size);
             const typeLabel = type === 'static' ? 'ثابت' : type === 'video' ? 'فيديو متحرك' : 'متحرك TGS';
